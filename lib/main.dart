@@ -1,11 +1,33 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 
 import 'package:flutter_weather/widgets/Weather.dart';
 import 'package:flutter_weather/widgets/WeatherItem.dart';
+import 'package:flutter_weather/models/WeatherData.dart';
+import 'package:flutter_weather/models/ForecastData.dart';
 
 void main() => runApp(new MyApp());
 
-class MyApp extends StatelessWidget {
+class MyApp extends StatefulWidget {
+  @override
+  State<StatefulWidget> createState() {
+    return new MyAppState();
+  }
+}
+
+class MyAppState extends State<MyApp> {
+  bool isLoading = false;
+  WeatherData weatherData;
+  ForecastData forecastData;
+
+  @override
+  void initState() {
+    super.initState();
+
+    loadWeather();
+  }
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -28,14 +50,17 @@ class MyApp extends StatelessWidget {
                   children: <Widget>[
                     Padding(
                       padding: const EdgeInsets.all(8.0),
-                      child: Weather(),
+                      child: weatherData != null ? Weather(weather: weatherData) : Container(),
                     ),
                     Padding(
                       padding: const EdgeInsets.all(8.0),
-                      child: IconButton(
+                      child: isLoading ? CircularProgressIndicator(
+                        strokeWidth: 2.0,
+                        valueColor: new AlwaysStoppedAnimation(Colors.white),
+                      ) : IconButton(
                         icon: new Icon(Icons.refresh),
                         tooltip: 'Refresh',
-                        onPressed: () => null,
+                        onPressed: loadWeather,
                         color: Colors.white,
                       ),
                     ),
@@ -47,11 +72,11 @@ class MyApp extends StatelessWidget {
                   padding: const EdgeInsets.all(8.0),
                   child: Container(
                     height: 200.0,
-                    child: ListView.builder(
-                        itemCount: 10,
+                    child: forecastData != null ? ListView.builder(
+                        itemCount: forecastData.list.length,
                         scrollDirection: Axis.horizontal,
-                        itemBuilder: (context, index) => WeatherItem()
-                    ),
+                        itemBuilder: (context, index) => WeatherItem(weather: forecastData.list.elementAt(index))
+                    ) : Container(),
                   ),
                 ),
               )
@@ -60,5 +85,33 @@ class MyApp extends StatelessWidget {
         )
       ),
     );
+  }
+
+  loadWeather() async {
+    setState(() {
+      isLoading = true;
+    });
+
+    final lat = 40.730610;
+    final lon = -73.935242;
+    final weatherResponse = await http.get(
+        'https://api.openweathermap.org/data/2.5/weather?APPID=0721392c0ba0af8c410aa9394defa29e&lat=${lat
+            .toString()}&lon=${lon.toString()}');
+    final forecastResponse = await http.get(
+        'https://api.openweathermap.org/data/2.5/forecast?APPID=0721392c0ba0af8c410aa9394defa29e&lat=${lat
+            .toString()}&lon=${lon.toString()}');
+
+    if (weatherResponse.statusCode == 200 &&
+        forecastResponse.statusCode == 200) {
+      return setState(() {
+        weatherData = new WeatherData.fromJson(jsonDecode(weatherResponse.body));
+        forecastData = new ForecastData.fromJson(jsonDecode(forecastResponse.body));
+        isLoading = false;
+      });
+    }
+
+    setState(() {
+      isLoading = false;
+    });
   }
 }
